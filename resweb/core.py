@@ -110,7 +110,7 @@ def delete_all_failed():
     return redirect('/failed/')
 
 
-@app.route('/failed/retry_all')
+@app.route('/failed/retry_all/')
 @requires_auth
 def retry_failed(number=5000):
     failures = failure.all(g.pyres, 0, number)
