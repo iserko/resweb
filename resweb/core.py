@@ -1,60 +1,71 @@
+from base64 import b64decode
 from functools import wraps
-from flask import Flask, g, redirect, request, Response, render_template, url_for
+
+from flask import Flask, Response, g, redirect, render_template, request, url_for
+
 from pyres import ResQ, failure
 
 from resweb.views import (
+    Delayed,
+    DelayedTimestamp,
+    Failed,
     Overview,
-    Queues,
     Queue,
+    Queues,
+    Stat,
+    Stats,
+    Worker,
     Workers,
     Working,
-    Failed,
-    Stats,
-    Stat,
-    Worker,
-    Delayed,
-    DelayedTimestamp
 )
-from base64 import b64decode
 app = Flask(__name__)
 app.config.from_object('resweb.default_settings')
 app.config.from_envvar('RESWEB_SETTINGS', silent=True)
+
+
 def check_auth(username, password):
     """This function is called to check if a username /
     password combination is valid.
     """
     if app.config.get('BASIC_AUTH'):
-        return username == app.config.get('AUTH_USERNAME') and password == app.config.get('AUTH_PASSWORD')
+        return (
+            username == app.config.get('AUTH_USERNAME') and
+            password == app.config.get('AUTH_PASSWORD'))
     else:
         return True
+
 
 def authenticate():
     """Sends a 401 response that enables basic auth"""
     return Response(
-    'Could not verify your access level for that URL.\n'
-    'You have to login with proper credentials', 401,
-    {'WWW-Authenticate': 'Basic realm="Login Required"'})
+        'Could not verify your access level for that URL.\n'
+        'You have to login with proper credentials', 401,
+        {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
 
 def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        print app.config.get('BASIC_AUTH')
         auth = request.authorization
-        if app.config.get('BASIC_AUTH') and (not auth or not check_auth(auth.username, auth.password)):
+        if app.config.get('BASIC_AUTH') and (
+                not auth or not check_auth(auth.username, auth.password)):
             return authenticate()
         return f(*args, **kwargs)
     return decorated
+
 
 @app.before_request
 def before_request():
     """Make sure we are connected to the database each request."""
     g.pyres = ResQ(app.config['RESWEB_HOST'], password=app.config.get('RESWEB_PASSWORD', None))
 
+
 @app.teardown_request
 def teardown_request(exception):
     """Closes the database again at the end of the request."""
     if hasattr(g, 'pyres'):
         g.pyres.close()
+
 
 @app.route('/')
 @requires_auth
@@ -73,6 +84,7 @@ def overview():
     }
     return render_template('overview.html', data=data)
 
+
 @app.route('/working/')
 @requires_auth
 def working():
@@ -88,6 +100,7 @@ def working():
     }
     return render_template('working.html', data=data)
 
+
 @app.route('/queues/')
 @requires_auth
 def queues():
@@ -101,11 +114,12 @@ def queues():
     }
     return render_template('queues.html', data=data)
 
+
 @app.route('/queues/<queue_id>/')
 @requires_auth
 def queue(queue_id):
     start = int(request.args.get('start', 0))
-    view_queue =  Queue(g.pyres, queue_id, start)
+    view_queue = Queue(g.pyres, queue_id, start)
     data = {
         'queue': view_queue.queue(),
         'start': view_queue.start(),
@@ -118,6 +132,7 @@ def queue(queue_id):
         'address': view_queue.address()
     }
     return render_template('queue.html', data=data)
+
 
 @app.route('/failed/')
 @requires_auth
@@ -133,8 +148,8 @@ def failed():
         'resweb_version': view_failed.resweb_version(),
         'address': view_failed.address()
     }
-    
     return render_template('failed.html', data=data)
+
 
 @app.route('/failed/retry/', methods=['POST'])
 @requires_auth
@@ -145,6 +160,7 @@ def failed_retry():
     failure.retry(g.pyres, decoded['queue'], job)
     return redirect(url_for('.failed'))
 
+
 @app.route('/failed/delete/', methods=['POST'])
 @requires_auth
 def failed_delete():
@@ -153,11 +169,12 @@ def failed_delete():
     failure.delete(g.pyres, job)
     return redirect(url_for('.failed'))
 
+
 @app.route('/failed/delete_all/')
 @requires_auth
 def delete_all_failed():
     # move resque:failed to resque:failed-staging
-    if g.pyres.redis.exists('resque:failed'): 
+    if g.pyres.redis.exists('resque:failed'):
         g.pyres.redis.rename('resque:failed', 'resque:failed-staging')
     g.pyres.redis.delete('resque:failed-staging')
     return redirect(url_for('.failed'))
@@ -172,10 +189,11 @@ def retry_failed(number=5000):
         failure.retry(g.pyres, f['queue'], j)
     return redirect(url_for('.failed'))
 
+
 @app.route('/workers/<worker_id>/')
 @requires_auth
 def worker(worker_id):
-    view_worker =  Worker(g.pyres, worker_id)
+    view_worker = Worker(g.pyres, worker_id)
     data = {
         'worker': view_worker.worker(),
         'host': view_worker.host(),
@@ -192,8 +210,8 @@ def worker(worker_id):
         'resweb_version': view_worker.resweb_version(),
         'address': view_worker.address()
     }
-    print data
     return render_template('worker.html', data=data)
+
 
 @app.route('/workers/')
 @requires_auth
@@ -207,18 +225,19 @@ def workers():
         'resweb_version': view_workers.resweb_version(),
         'address': view_workers.address()
     }
-    print data
     return render_template('workers.html', data=data)
+
 
 @app.route('/stats/')
 @requires_auth
 def stats_resque():
     return redirect(url_for('.stats', key='resque'))
 
+
 @app.route('/stats/<key>/')
 @requires_auth
 def stats(key):
-    view_stats =  Stats(g.pyres, key)
+    view_stats = Stats(g.pyres, key)
     data = {
         'key': key,
         'sub_nav': view_stats.sub_nav(),
@@ -228,13 +247,13 @@ def stats(key):
         'resweb_version': view_stats.resweb_version(),
         'address': view_stats.address()
     }
-    print data
     return render_template('stats.html', data=data)
+
 
 @app.route('/stat/<stat_id>/')
 @requires_auth
 def stat(stat_id):
-    view_stat =  Stat(g.pyres, stat_id)
+    view_stat = Stat(g.pyres, stat_id)
     data = {
         'stat_id': stat_id,
         'key': view_stat.key(),
@@ -245,8 +264,8 @@ def stat(stat_id):
         'resweb_version': view_stat.resweb_version(),
         'address': view_stat.address()
     }
-    print data
     return render_template('stat.html', data=data)
+
 
 @app.route('/delayed/')
 @requires_auth
@@ -262,8 +281,8 @@ def delayed():
         'resweb_version': view_delayed.resweb_version(),
         'address': view_delayed.address()
     }
-    print data
     return render_template('delayed.html', data=data)
+
 
 @app.route('/delayed/<timestamp>/')
 @requires_auth
@@ -280,10 +299,13 @@ def delayed_timestamp(timestamp):
         'resweb_version': view_dt.resweb_version(),
         'address': view_dt.address()
     }
-    print data
     return render_template('delayed_timestamp.html', data=data)
 
+
 def main():
-    app.run(host=app.config['SERVER_HOST'], port=int(app.config['SERVER_PORT']), debug=True)
+    app.run(
+        host=app.config['SERVER_HOST'],
+        port=int(app.config['SERVER_PORT']))
+
 if __name__ == '__main__':
     main()

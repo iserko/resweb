@@ -9,5 +9,7 @@ web:
     - RESWEB_HOST=devredis:6379
   links:
     - redis:devredis
+  volumes:
+    - .:/opt/resweb
 redis:
-  image: redis
+  image: redis:2.8

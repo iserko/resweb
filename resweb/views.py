@@ -1,14 +1,18 @@
-from pyres import __version__
-from resweb import __version__ as res_version
-from pyres.worker import Worker as Wrkr
-from pyres import failure
-import os
 import datetime
+import os
+
+from pyres import __version__
+from pyres import failure
+from pyres.worker import Worker as Wrkr
+
+from resweb import __version__ as res_version
 
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), 'templates')
+
+
 class ResWeb(object):
     _template_path = TEMPLATE_PATH
-    
+
     def __init__(self, host):
         self.resq = host
 
@@ -45,6 +49,7 @@ class ResWeb(object):
             link_name = str(i + 1)
             pages.append(dict(link=link, link_name=link_name, current=current))
         return pages
+
 
 class Overview(ResWeb):
     def __init__(self, host, queue=None, start=0):
@@ -89,7 +94,7 @@ class Overview(ResWeb):
         return not self._queue
 
     def fail_count(self):
-        #from pyres.failure import Failure
+        # from pyres.failure import Failure
         return str(failure.count(self.resq))
 
     def workers(self):
@@ -126,11 +131,14 @@ class Overview(ResWeb):
         else:
             return True
 
+
 class Queues(Overview):
     template_name = 'queue_full'
 
+
 class Working(Overview):
     template_name = 'working_full'
+
 
 class Workers(ResWeb):
     def size(self):
@@ -165,6 +173,7 @@ class Workers(ResWeb):
             item['nodata'] = not item['data']
             workers.append(item)
         return workers
+
 
 class Queue(ResWeb):
     def __init__(self, host, key, start=0):
@@ -241,6 +250,7 @@ class Failed(ResWeb):
 
     def link_func(self, start):
         return '/failed/?start=%s' % start
+
 
 class Stats(ResWeb):
     def __init__(self, host, key_id):
@@ -320,6 +330,7 @@ class Stats(ResWeb):
             return True
         return False
 
+
 class Stat(ResWeb):
     def __init__(self, host, stat_id):
         self.stat_id = stat_id
@@ -353,6 +364,7 @@ class Stat(ResWeb):
 
     def size(self):
         return redis_size(self.stat_id, self.resq)
+
 
 class Worker(ResWeb):
     def __init__(self, host, worker_id):
@@ -434,6 +446,7 @@ class Worker(ResWeb):
         """
         pass
 
+
 class Delayed(ResWeb):
     def __init__(self, host, start=0):
         self._start = start
@@ -466,6 +479,7 @@ class Delayed(ResWeb):
 
     def link_func(self, start):
         return '/delayed/?start=%s' % start
+
 
 class DelayedTimestamp(ResWeb):
     def __init__(self, host, timestamp, start=0):
@@ -507,6 +521,7 @@ class DelayedTimestamp(ResWeb):
     def link_func(self, start):
         return '/delayed/?start=%s' % start
 
+
 def redis_size(key, resq):
     key_type = resq.redis.type('resque:' + key)
     item = 0
@@ -517,4 +532,3 @@ def redis_size(key, resq):
     elif key_type == 'string':
         item = 1
     return str(item)
-
