@@ -1,9 +1,13 @@
-resweb:
+web:
   build: .
   command: python -m resweb.core
   ports:
     - "5000:5000"
   environment:
-    - RESWEB_HOST
-    - SERVER_HOST
+    - SERVER_HOST=0.0.0.0
     - SERVER_PORT
+    - RESWEB_HOST=devredis:6379
+  links:
+    - redis:devredis
+redis:
+  image: redis
